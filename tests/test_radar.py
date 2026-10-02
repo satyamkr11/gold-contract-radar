@@ -239,3 +239,28 @@ def test_metric_consistency_profit_factor_and_drawdown():
     net_pf = sum(t.net_pnl_inr for t in net_wins) / abs(sum(t.net_pnl_inr for t in net_losses))
     assert net_pf == pytest.approx(1500.0 / 1700.0, rel=1e-3)
 
+
+def test_dynamic_expiry_selection_and_date_formatting():
+    """Verify dynamic selection of best-supported expiry and date formatting logic."""
+    df_pair = pd.DataFrame({
+        "expiry_a": [date(2026, 8, 31)] * 1 + [date(2026, 10, 30)] * 15 + [date(2026, 11, 30)] * 15,
+        "trade_date": [date(2026, 8, 28)] + [date(2026, 9, i) for i in range(10, 25)] + [date(2026, 9, i) for i in range(10, 25)],
+    })
+
+    unique_expiries = sorted([str(d) for d in df_pair["expiry_a"].unique().tolist()])
+    exp_counts = df_pair["expiry_a"].astype(str).value_counts()
+    max_obs = exp_counts.max()
+    top_expiries = [exp for exp in unique_expiries if exp_counts.get(exp, 0) == max_obs]
+    best_expiry = top_expiries[0] if top_expiries else unique_expiries[0]
+    default_idx = unique_expiries.index(best_expiry)
+
+    # 2026-10-30 has 15 observations and comes first chronologically among top ties
+    assert best_expiry == "2026-10-30"
+    assert default_idx == 1  # 2026-08-31 is at 0, 2026-10-30 is at 1
+
+    # Date formatting produces clean strings
+    date_formatted = pd.to_datetime(df_pair["trade_date"]).dt.strftime("%d %b").tolist()
+    assert date_formatted[0] == "28 Aug"
+    assert date_formatted[1] == "10 Sep"
+
+

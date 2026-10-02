@@ -392,8 +392,20 @@ with tab_spreads:
         pair_df = all_spreads[all_spreads["pair"] == selected_pair].copy()
         unique_expiries = sorted([str(d) for d in pair_df["expiry_a"].unique().tolist()])
         
+        # Determine the default expiry dynamically by greatest usable historical coverage
+        exp_counts = pair_df["expiry_a"].astype(str).value_counts()
+        max_obs = exp_counts.max() if not exp_counts.empty else 0
+        top_expiries = [exp for exp in unique_expiries if exp_counts.get(exp, 0) == max_obs]
+        best_expiry = top_expiries[0] if top_expiries else (unique_expiries[0] if unique_expiries else None)
+        default_idx = unique_expiries.index(best_expiry) if best_expiry in unique_expiries else 0
+
         with col_p2:
-            selected_expiry = st.selectbox("Select Contract Expiry A", unique_expiries, index=0)
+            selected_expiry = st.selectbox(
+                "Select Contract Expiry A",
+                unique_expiries,
+                index=default_idx,
+                help="Automatically defaults to the contract expiry with the strongest historical coverage."
+            )
 
         filtered_pair_df = pair_df[pair_df["expiry_a"].astype(str) == selected_expiry].copy()
         
@@ -431,14 +443,24 @@ with tab_spreads:
                 else:
                     st.markdown("<span class='status-badge-neutral'>⚪ NEUTRAL</span>", unsafe_allow_html=True)
 
-            # Interactive Plotly Chart
+            # Interactive Plotly Chart with clean formatted trading dates
+            z_plot_df = z_scored_df.copy()
+            z_plot_df["display_date"] = pd.to_datetime(z_plot_df["trade_date"]).dt.strftime("%d %b")
+            z_plot_df["full_date"] = pd.to_datetime(z_plot_df["trade_date"]).dt.strftime("%d %b %Y")
+
             fig = px.line(
-                z_scored_df,
-                x="trade_date",
+                z_plot_df,
+                x="display_date",
                 y="spread_inr_g",
                 markers=True,
                 title=f"Historical Normalized Spread (₹/g Pure Gold): {selected_pair} [Expiry: {selected_expiry}]",
-                labels={"trade_date": "Trade Date", "spread_inr_g": "Spread (₹/g)"}
+                labels={"display_date": "Trading Date", "spread_inr_g": "Spread (₹/g)"},
+                hover_data={"display_date": False, "full_date": True, "spread_inr_g": ":.2f"}
+            )
+            fig.update_xaxes(
+                type="category",
+                title_text="Trading Session",
+                tickangle=-30,
             )
             fig.update_layout(
                 template="plotly_dark",
@@ -527,16 +549,25 @@ with tab_backtest:
 
         if report.daily_equity_curve:
             eq_df = pd.DataFrame(report.daily_equity_curve)
+            eq_df["display_date"] = pd.to_datetime(eq_df["exit_date"]).dt.strftime("%d %b")
+            eq_df["full_date"] = pd.to_datetime(eq_df["exit_date"]).dt.strftime("%d %b %Y")
             fig_eq = px.line(
                 eq_df,
-                x="exit_date",
+                x="display_date",
                 y="cumulative_net_pnl",
                 markers=True,
                 title="Walk-Forward Cumulative Net P&L Curve (₹ Post-Friction)",
-                labels={"exit_date": "Exit Date", "cumulative_net_pnl": "Cumulative Net P&L (₹)"}
+                labels={"display_date": "Exit Date", "cumulative_net_pnl": "Cumulative Net P&L (₹)"},
+                hover_data={"display_date": False, "full_date": True, "cumulative_net_pnl": ":,.2f"}
+            )
+            fig_eq.update_xaxes(
+                type="category",
+                title_text="Exit Session",
+                tickangle=-30,
             )
             fig_eq.update_layout(
                 template="plotly_dark",
+                hovermode="x unified",
                 paper_bgcolor="#161B22",
                 plot_bgcolor="#0D1117",
                 margin=dict(l=20, r=20, t=40, b=20),

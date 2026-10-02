@@ -115,7 +115,7 @@ gold-contract-radar/
 │   ├── pipeline.py            # Multi-file Bhavcopy ingestion and MCX downloader interface
 │   └── backtest.py            # Walk-forward backtester and statistical sufficiency auditor
 └── tests/
-    └── test_radar.py          # Complete unit test suite (8 passing tests)
+    └── test_radar.py          # Complete unit test suite (9 passing tests)
 ```
 
 ---
